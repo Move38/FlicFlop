@@ -25,6 +25,7 @@ byte team = 0;
 byte numTeams = 3;
 bool isCommittedToTeam = false;
 bool wasAlone = false;
+bool bRange = false;
 
 void setup() {
 
@@ -84,7 +85,14 @@ void updateFlopper() {
   if (flopperTimer.isExpired()) {
     // let's flop!
     team = team % numTeams + 1;  //getRandomTeam(team);
-    flopperTimer.set(FLOPPER_INTERVAL + rand(FLOPPER_INTERVAL_RANGE * 2) - FLOPPER_INTERVAL_RANGE);
+    uint16_t flopDuration;
+    if(bRange) {
+      map(rand(5), 0, 5, FLOPPER_INTERVAL - FLOPPER_INTERVAL_RANGE, FLOPPER_INTERVAL + FLOPPER_INTERVAL_RANGE);
+    }
+    else {
+      flopDuration = FLOPPER_INTERVAL;
+    }
+    flopperTimer.set(flopDuration);
   }
 
   // broadcast our team color
