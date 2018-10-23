@@ -19,9 +19,14 @@ enum gameRole {
   NUM_ROLES
 };
 
+enum flickStatus {
+  READY,
+  SET
+};
+
 byte role = FLICKER;
 byte teamBroadcast = 0;
-byte team = 0;
+byte team = 1;
 byte numTeams = 3;
 bool isCommittedToTeam = false;
 bool wasAlone = false;
@@ -41,6 +46,7 @@ void loop() {
   if (buttonDoubleClicked()) {
 
     role++;
+    isCommittedToTeam = false;
 
     if (role >= NUM_ROLES) {
       role = 0;
@@ -75,6 +81,39 @@ void loop() {
     case FLOPPER:   displayFlopper();  break;
   }
 
+  // share which piece type we are and the team we need to broadcast
+  // lower 2 bits communicate the game role - -
+  // upper 4 bits communicate the piece mode - - - -
+  byte sendData = (teamBroadcast << 2) + ((int)isCommittedToTeam << 1) + role;
+
+  setValueSentOnAllFaces(sendData);
+
+}
+
+/*
+   COMMUNICATION HELPERS
+*/
+
+//Call these formulas when we want to separate the sent data
+byte getTeamFromReceivedData(byte data) {
+  byte t = (data >> 2) & 15;  // keep only the 4 bits of info
+  //  Serial.print("team from received data: ");
+  //  Serial.println(t);
+  return t;
+}
+
+byte getStatusFromReceivedData(byte data) {
+  byte s = data & 2;
+  //  Serial.print("role from received data: ");
+  //  Serial.println(role);
+  return s;
+}
+
+byte getRoleFromReceivedData(byte data) {
+  byte r = data & 1;  // keep only the lower 1 bit of info
+  //  Serial.print("role from received data: ");
+  //  Serial.println(role);
+  return r;
 }
 
 /*
@@ -84,9 +123,9 @@ void updateFlopper() {
   // I'm a flopper, all I have to do is change which team I am broadcasting every so often...
   if (flopperTimer.isExpired()) {
     // let's flop!
-    team = team % numTeams + 1;  //getRandomTeam(team);
+    team = (team % numTeams) + 1;  //getRandomTeam(team);
     uint16_t flopDuration;
-    if(bRange) {
+    if (bRange) {
       map(rand(5), 0, 5, FLOPPER_INTERVAL - FLOPPER_INTERVAL_RANGE, FLOPPER_INTERVAL + FLOPPER_INTERVAL_RANGE);
     }
     else {
@@ -96,7 +135,8 @@ void updateFlopper() {
   }
 
   // broadcast our team color
-  setValueSentOnAllFaces(team);
+  teamBroadcast = team;
+  isCommittedToTeam = true;
 }
 
 byte getRandomTeam( byte curTeam) {
@@ -111,20 +151,27 @@ void updateFlicker() {
 
   FOREACH_FACE(f) {
     if (!isValueReceivedOnFaceExpired(f)) {
-      byte neighbor = getLastValueReceivedOnFace(f);
+      byte data = getLastValueReceivedOnFace(f);
+      byte neighborTeam = getTeamFromReceivedData(data);
+      byte neighborRole = getRoleFromReceivedData(data);
+      byte neighborStatus = getStatusFromReceivedData(data);
 
       // if I was alone and now have a neighbor, take the team broadcast from the flopper
       if (wasAlone) {
-        team = neighbor;
-        isCommittedToTeam = true; // We're now this team for real
-        wasAlone = false;
-        break;
+        if( neighborRole == FLICKER && neighborStatus != SET ) {
+          // pieces in waiting to be attached and set 
+        }
+        else {
+          team = neighborTeam;
+          isCommittedToTeam = true; // We're now this team for real
+          wasAlone = false;
+          break;
+        }
       }
       else {
         // if I hear the flopper update its team, broadcast that team
-        if (neighbor != 0) {
-          teamBroadcast = neighbor;
-          setValueSentOnAllFaces(neighbor);
+        if (neighborTeam != 0 && (neighborStatus == SET || neighborRole == FLOPPER) ) {
+          teamBroadcast = getTeamFromReceivedData(data);
           break;
         }
       }
@@ -171,6 +218,7 @@ Color getColorForTeam( byte t ) {
   Color c = WHITE;  // default...
 
   switch (t) {
+    case 0: c = RED; break; // not currently used as a team
     case 1: c = makeColorHSB(160, 255, 255); break;
     case 2: c = makeColorHSB(200, 255, 255); break;
     case 3: c = makeColorHSB(280, 255, 255); break;
