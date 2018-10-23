@@ -103,7 +103,7 @@ byte getTeamFromReceivedData(byte data) {
 }
 
 byte getStatusFromReceivedData(byte data) {
-  byte s = data & 2;
+  byte s = (data >> 1) & 1;
   //  Serial.print("role from received data: ");
   //  Serial.println(role);
   return s;
@@ -158,10 +158,10 @@ void updateFlicker() {
 
       // if I was alone and now have a neighbor, take the team broadcast from the flopper
       if (wasAlone) {
-        if( neighborRole == FLICKER && neighborStatus != SET ) {
-          // pieces in waiting to be attached and set 
-        }
-        else {
+
+        if ( neighborRole == FLOPPER ||
+             (neighborRole == FLICKER && neighborStatus == SET ) ) {
+
           team = neighborTeam;
           isCommittedToTeam = true; // We're now this team for real
           wasAlone = false;
@@ -170,9 +170,15 @@ void updateFlicker() {
       }
       else {
         // if I hear the flopper update its team, broadcast that team
-        if (neighborTeam != 0 && (neighborStatus == SET || neighborRole == FLOPPER) ) {
-          teamBroadcast = getTeamFromReceivedData(data);
+        if ( neighborRole == FLOPPER ) {
+          teamBroadcast = neighborTeam;
           break;
+        } else if ( neighborRole == FLICKER && neighborStatus == SET ) {
+
+          if (teamBroadcast != neighborTeam) {
+            teamBroadcast = neighborTeam;
+            break;
+          }
         }
       }
     }
