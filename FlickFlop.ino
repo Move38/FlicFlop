@@ -7,231 +7,254 @@
    by Nick Bentley and Jonathan Bobrow
 */
 
-#define FLOPPER_INTERVAL 2000         // time between team flops
-#define FLOPPER_INTERVAL_RANGE 1000   // interval can be +/- this amount
-//#define NUM_TEAMS 3                 // let's make this variable to playtest
+enum blinkTypes {FLOPPER, FLICKER};
+byte blinkType = FLICKER;
 
-Timer flopperTimer;
+#define TEAM_COUNT 3
+byte displayTeam = 1;
+byte scoringTeam = 0;
+byte signalTeam = 0;
 
-enum gameRole {
-  FLICKER,
-  FLOPPER,
-  NUM_ROLES
-};
+enum gameStates {GAME, TRANSITION, SCORE};
+byte gameState = GAME;
 
-enum flickStatus {
-  READY,
-  SET
-};
+Timer flopTimer;
+#define FLOP_INTERVAL 2000
 
-byte role = FLICKER;
-byte teamBroadcast = 0;
-byte team = 1;
-byte numTeams = 3;
-bool isCommittedToTeam = false;
-bool wasAlone = false;
-bool bRange = false;
+
+Timer animTimer;
+#define ANIMATION_INTERVAL 200
+byte spinFace = 0;
+byte teamHues[4] = {0, 45, 125, 230};
 
 void setup() {
+  // put your setup code here, to run once:
 
 }
 
 void loop() {
-
-  /*
-     HANDLE INPUTS
-  */
-
-  // switch roles with button double click
-  if (buttonDoubleClicked()) {
-
-    role++;
-    isCommittedToTeam = false;
-
-    if (role >= NUM_ROLES) {
-      role = 0;
-    }
+  // put your main code here, to run repeatedly:
+  if (blinkType == FLOPPER) {
+    flopperLoop();
+    flopperDisplay();
+  } else if (blinkType == FLICKER) {
+    flickerLoop();
+    flickerDisplay();
   }
 
-  if (buttonPressed()) {
-    if (role == FLICKER && isAlone()) {
-      if (isCommittedToTeam) {
-        // reset our team
-        isCommittedToTeam = false;
-      }
-      else {
-        // change team
-        team++;
-        if (team > numTeams) {
-          team = 1;
-        }
-      }
-    }
-  }
-
-  // Update
-  switch (role) {
-    case FLICKER:   updateFlicker();  break;
-    case FLOPPER:   updateFlopper();  break;
-  }
-
-  // Display
-  switch (role) {
-    case FLICKER:   displayFlicker();  break;
-    case FLOPPER:   displayFlopper();  break;
-  }
-
-  // share which piece type we are and the team we need to broadcast
-  // lower 2 bits communicate the game role - -
-  // upper 4 bits communicate the piece mode - - - -
-  byte sendData = (teamBroadcast << 2) + ((int)isCommittedToTeam << 1) + role;
-
+  //set up communication
+  byte sendData = (blinkType << 5) + (gameState << 3) + (signalTeam);
   setValueSentOnAllFaces(sendData);
 
+  //dump button presses
+  buttonSingleClicked();
+  buttonDoubleClicked();
 }
 
-/*
-   COMMUNICATION HELPERS
-*/
-
-//Call these formulas when we want to separate the sent data
-byte getTeamFromReceivedData(byte data) {
-  byte t = (data >> 2) & 15;  // keep only the 4 bits of info
-  //  Serial.print("team from received data: ");
-  //  Serial.println(t);
-  return t;
-}
-
-byte getStatusFromReceivedData(byte data) {
-  byte s = (data >> 1) & 1;
-  //  Serial.print("role from received data: ");
-  //  Serial.println(role);
-  return s;
-}
-
-byte getRoleFromReceivedData(byte data) {
-  byte r = data & 1;  // keep only the lower 1 bit of info
-  //  Serial.print("role from received data: ");
-  //  Serial.println(role);
-  return r;
-}
-
-/*
-   UPDATE LOOPS (Logic)
-*/
-void updateFlopper() {
-  // I'm a flopper, all I have to do is change which team I am broadcasting every so often...
-  if (flopperTimer.isExpired()) {
-    // let's flop!
-    team = (team % numTeams) + 1;  //getRandomTeam(team);
-    uint16_t flopDuration;
-    if (bRange) {
-      map(rand(5), 0, 5, FLOPPER_INTERVAL - FLOPPER_INTERVAL_RANGE, FLOPPER_INTERVAL + FLOPPER_INTERVAL_RANGE);
+void flopperLoop() {
+  if (gameState == GAME) {
+    //time to change team?
+    if (flopTimer.isExpired()) {
+      signalTeam = (signalTeam % TEAM_COUNT) + 1;
+      flopTimer.set(FLOP_INTERVAL);
     }
-    else {
-      flopDuration = FLOPPER_INTERVAL;
+
+    //if double clicked, move to transition
+    if (buttonDoubleClicked()) {
+      gameState = TRANSITION;
     }
-    flopperTimer.set(flopDuration);
-  }
-
-  // broadcast our team color
-  teamBroadcast = team;
-  isCommittedToTeam = true;
-}
-
-byte getRandomTeam( byte curTeam) {
-  byte t = 255;
-  while ( t != curTeam ) {
-    t = 1 + rand(numTeams - 1);
-  }
-  return t;
-}
-
-void updateFlicker() {
-
-  FOREACH_FACE(f) {
-    if (!isValueReceivedOnFaceExpired(f)) {
-      byte data = getLastValueReceivedOnFace(f);
-      byte neighborTeam = getTeamFromReceivedData(data);
-      byte neighborRole = getRoleFromReceivedData(data);
-      byte neighborStatus = getStatusFromReceivedData(data);
-
-      // if I was alone and now have a neighbor, take the team broadcast from the flopper
-      if (wasAlone) {
-
-        if ( neighborRole == FLOPPER ||
-             (neighborRole == FLICKER && neighborStatus == SET ) ) {
-
-          team = neighborTeam;
-          isCommittedToTeam = true; // We're now this team for real
-          wasAlone = false;
-          break;
-        }
+  } else if (gameState == TRANSITION) {
+    if (scoreCheck()) {
+      gameState = SCORE;
+      signalTeam = 1;
+    }
+  } else if (gameState == SCORE) {
+    if (buttonDoubleClicked()) {
+      if (isAlone()) {
+        gameState = GAME;
       }
-      else {
-        // if I hear the flopper update its team, broadcast that team
-        if ( neighborRole == FLOPPER ) {
-          teamBroadcast = neighborTeam;
-          break;
-        } else if ( neighborRole == FLICKER && neighborStatus == SET ) {
+    }
+  }
 
-          if (teamBroadcast != neighborTeam) {
-            teamBroadcast = neighborTeam;
-            break;
+  //change to flopper?
+  if (buttonLongPressed()) {
+    if (isAlone) {
+      blinkType = FLICKER;
+      scoringTeam = 0;
+      signalTeam = 0;
+      gameState = GAME;
+    }
+  }
+}
+
+void flickerLoop() {
+  if (gameState == GAME) {
+    if (signalTeam > 0) { //I'm in the game itself
+      bool stillChecking = true;
+      FOREACH_FACE(f) {
+        if (stillChecking) {
+          if (!isValueReceivedOnFaceExpired(f)) {//neighbor!
+            //listen for neighbors to move me to the next team signal color
+            if (getSignalTeam(getLastValueReceivedOnFace(f)) % TEAM_COUNT > (signalTeam % TEAM_COUNT)) { //This neighbor is in the next team state (1 >> 2, 2 >> 3, 3 >> 1)
+              signalTeam = getSignalTeam(getLastValueReceivedOnFace(f));//change to that team
+            }
+            //team change?
+            if (getSignalTeam(getLastValueReceivedOnFace(f)) == 1 && signalTeam == 3) {
+              signalTeam = 1;
+              stillChecking = false;
+            } else if (getSignalTeam(getLastValueReceivedOnFace(f)) == 2 && signalTeam == 1) {
+              signalTeam = 2;
+              stillChecking = false;
+            } else if (getSignalTeam(getLastValueReceivedOnFace(f)) == 3 && signalTeam == 2) {
+              signalTeam = 3;
+              stillChecking = false;
+            }
           }
         }
       }
+
+    } else {//Im just a flicker in waiting
+      //wait for a neighbor to appear who is part of the game
+      FOREACH_FACE(f) {
+        if (!isValueReceivedOnFaceExpired(f)) {//neighbor!
+          if (getSignalTeam(getLastValueReceivedOnFace(f)) > 0) {
+            scoringTeam = getSignalTeam(getLastValueReceivedOnFace(f));
+            signalTeam = scoringTeam;
+          }
+        }
+      }
+
+      //also, wait for single clicks to change my display team
+      if (buttonSingleClicked()) {
+        displayTeam = (displayTeam % TEAM_COUNT) + 1;
+      }
+    }
+
+    //also, time to transition?
+    if (transitionCheck()) {
+      gameState = TRANSITION;
+      signalTeam = 0;
+    }
+
+  } else if (gameState == TRANSITION) {
+    if (scoreCheck()) {
+      gameState = SCORE;
+    }
+  } else if (gameState == SCORE) {
+    if (buttonDoubleClicked() || gameCheck()) {
+      gameState = GAME;
+      displayTeam = scoringTeam;
+      scoringTeam = 0;
     }
   }
 
-  if (isAlone() && !isCommittedToTeam ) {
-    wasAlone = true;
-  }
-
-}
-
-/*
-   DISPLAY LOOPS (Pretty)
-*/
-
-void displayFlopper() {
-  setColor( OFF );  // reset display
-  setColor( getColorForTeam(team) );
-}
-
-void displayFlicker() {
-  setColor( OFF );  // reset display
-
-  if (isCommittedToTeam) {
-    // solid for our team color
-    setColor( getColorForTeam(team) );
-    if (!isAlone()) {
-      byte index = (millis() / 300) % 6;
-      setColorOnFace( getColorForTeam(teamBroadcast), index  );
-      setColorOnFace( getColorForTeam(teamBroadcast), (index + 1) % 6);
-      setColorOnFace( getColorForTeam(teamBroadcast), (index + 2) % 6 );
+  //change to flicker?
+  if (buttonLongPressed()) {
+    if (isAlone) {
+      blinkType = FLOPPER;
+      scoringTeam = 0;
+      signalTeam = 0;
+      gameState = GAME;
     }
   }
-  else {
-    // one light to root for our team
-    setColorOnFace( getColorForTeam(team), 0 );
-  }
-
 }
 
-Color getColorForTeam( byte t ) {
+/////////////////
+//DISPLAY LOOPS//
+/////////////////
 
-  Color c = WHITE;  // default...
-
-  switch (t) {
-    case 0: c = RED; break; // not currently used as a team
-    case 1: c = makeColorHSB(160, 255, 255); break;
-    case 2: c = makeColorHSB(200, 255, 255); break;
-    case 3: c = makeColorHSB(280, 255, 255); break;
-    case 4: c = makeColorHSB(30, 255, 255); break;
-    default: WHITE;
+void flopperDisplay() {
+  if (gameState == GAME) {
+    setColor(makeColorHSB(teamHues[signalTeam], 255, 255));
+  } else {
+    setColor(WHITE);
   }
-
-  return c;
 }
 
+void flickerDisplay() {
+  if (animTimer.isExpired()) {
+    spinFace = (spinFace + 1) % 6;
+    animTimer.set(ANIMATION_INTERVAL);
+  }
+
+  if (gameState == GAME) {//game/waiting display
+    if (scoringTeam > 0) {//we are connected to the game
+      setColor(OFF);
+
+      setColorOnFace(makeColorHSB(teamHues[scoringTeam], 255, 255), spinFace);
+
+      setColorOnFace(makeColorHSB(teamHues[signalTeam], 255, 255), (spinFace + 2) % 6);
+      setColorOnFace(makeColorHSB(teamHues[signalTeam], 255, 255), (spinFace + 3) % 6);
+      setColorOnFace(makeColorHSB(teamHues[signalTeam], 255, 255), (spinFace + 4) % 6);
+
+
+    } else {//we are just chillin
+      setColor(OFF);
+      setColorOnFace(makeColorHSB(teamHues[displayTeam], 255, 255), spinFace);
+    }
+  } else {//showing final scoring team
+    setColor(makeColorHSB(teamHues[scoringTeam], 255, 255));
+  }
+}
+
+/////////////////////////
+//CONVENIENCE FUNCTIONS//
+/////////////////////////
+
+byte getBlinkType(byte data) {
+  return (data >> 5);
+}
+
+byte getGameState(byte data) {
+  return ((data >> 3) & 3);
+}
+
+byte getSignalTeam(byte data) {
+  return (data & 3);
+}
+
+bool transitionCheck() {//are any neighbors trying to send me into TRANSITION?
+  bool transitionBool = false;
+
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) { //a neighbor
+      if (getGameState(getLastValueReceivedOnFace(f)) == TRANSITION) {//this neighbor wants me to transition
+        transitionBool = true;
+      }
+    }
+  }
+
+  return transitionBool;
+}
+
+bool scoreCheck() {//can I transition into SCORE mode safely?
+  bool scoreBool = true;
+
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) { //a neighbor
+      if (getBlinkType(getLastValueReceivedOnFace(f)) == FLICKER) { //a neighbor I care about
+        if (getGameState(getLastValueReceivedOnFace(f)) == GAME) {//this neighbor still hasn't started their transition
+          scoreBool = false;
+        }
+      }
+    }
+  }
+
+  return scoreBool;
+}
+
+bool gameCheck() {//are any neighbors trying to send me into GAME?
+  bool gameBool = false;
+
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) { //a neighbor
+      if (getBlinkType(getLastValueReceivedOnFace(f)) == FLICKER) { //a neighbor I care about
+        if (getGameState(getLastValueReceivedOnFace(f)) == GAME) {//this neighbor wants me to go back to game
+          gameBool = true;
+        }
+      }
+    }
+  }
+
+  return gameBool;
+}
