@@ -94,10 +94,7 @@ void flickerLoop() {
       FOREACH_FACE(f) {
         if (stillChecking) {
           if (!isValueReceivedOnFaceExpired(f)) {//neighbor!
-            //listen for neighbors to move me to the next team signal color
-            if (getSignalTeam(getLastValueReceivedOnFace(f)) % TEAM_COUNT > (signalTeam % TEAM_COUNT)) { //This neighbor is in the next team state (1 >> 2, 2 >> 3, 3 >> 1)
-              signalTeam = getSignalTeam(getLastValueReceivedOnFace(f));//change to that team
-            }
+
             //team change?
             if (getSignalTeam(getLastValueReceivedOnFace(f)) == 1 && signalTeam == 3) {
               signalTeam = 1;
