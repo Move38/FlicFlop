@@ -161,10 +161,18 @@ void flickerLoop() {
 /////////////////
 
 void flopperDisplay() {
+  if (animTimer.isExpired()) {
+    spinFace = (spinFace + 1) % 6;
+    animTimer.set(ANIMATION_INTERVAL);
+  }
+
   if (gameState == GAME) {
     setColor(makeColorHSB(teamHues[signalTeam], 255, 255));
+    setColorOnFace(OFF, spinFace);
   } else {
-    setColor(WHITE);
+    FOREACH_FACE(f) {
+      setColorOnFace(makeColorHSB(teamHues[(f / 2) + 1], 255, 255), (spinFace + f) % 6);
+    }
   }
 }
 
