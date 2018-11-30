@@ -82,6 +82,7 @@ void flopperLoop() {
       blinkType = FLICKER;
       scoringTeam = 0;
       signalTeam = 0;
+      displayTeam = 1;
       gameState = GAME;
     }
   }
