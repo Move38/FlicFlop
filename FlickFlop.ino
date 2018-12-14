@@ -4,7 +4,7 @@
     1 piece becomes a flippin' master
     other pieces are game pieces. once attached they take the masters color
 
-   by Nick Bentley and Jonathan Bobrow
+   by Nick Bentley, Jonathan Bobrow, Dan King
 */
 
 enum blinkTypes {FLOPPER, FLICKER};
@@ -66,11 +66,12 @@ void flopperLoop() {
   } else if (gameState == TRANSITION) {
     if (scoreCheck()) {
       gameState = SCORE;
-      signalTeam = 1;
+      signalTeam = 0; // invalid team, since we are in scoring mode
     }
   } else if (gameState == SCORE) {
     if (buttonDoubleClicked()) {
       if (isAlone()) {
+        signalTeam = 1; // start our signaling on team 1 again
         gameState = GAME;
       }
     }
