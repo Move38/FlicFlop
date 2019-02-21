@@ -11,7 +11,7 @@ enum blinkTypes {FLOPPER, FLICKER};
 byte blinkType = FLICKER;
 
 #define TEAM_COUNT 3
-byte displayTeam = 1;
+byte displayTeam = 2;
 byte scoringTeam = 0;
 byte signalTeam = 0;
 
