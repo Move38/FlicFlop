@@ -1,4 +1,4 @@
-# FlickFlop
+# FlicFlop
 ###### by Jonathan Bobrow
 
 _INSERT GIF OF GAMEPLAY_
