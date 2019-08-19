@@ -31,11 +31,12 @@ Timer flopTimer;
 
 Timer animTimer;
 #define ANIMATION_INTERVAL 200
+byte animationInterval = ANIMATION_INTERVAL;
+
 #define ANIMATION_CELEBRATE_INTERVAL 20
 Timer celebrationTimer;
-#define CELEBRATE_TIME 500
+#define CELEBRATE_TIME 2000
 
-word animationInterval = ANIMATION_INTERVAL;
 byte spinFace = 0;
 byte teamHues[4] = {0, 45, 125, 230};
 
@@ -65,6 +66,8 @@ void loop() {
     beginCelebration();
   }
 
+  celebrationLoop();
+  
   //dump button presses
   buttonDoubleClicked();
   buttonLongPressed();
@@ -143,7 +146,7 @@ void flickerLoop() {
 
         if (getSignalTeam(neighborData) != 0) { //I have rejoined the game because this neighbor has a signal team
           gameState = FLICKER_SCORED;
-          signalTeam = 0;
+          signalTeam = getSignalTeam(neighborData);
 
         } else if (getScoringTeam(neighborData) == 0) { //this neighbor has no signal team, and also has no scoring team. Unscored!
           gameState = FLICKER_UNSCORED;
@@ -225,6 +228,8 @@ void flopperDisplay() {
 }
 
 void flickerDisplay() {
+  setColor(OFF);
+
   if (gameState == FLICKER_UNSCORED) {
     setColorOnFace(WHITE, spinFace);
   } else if (gameState == FLICKER_SCORED) {
