@@ -67,7 +67,7 @@ void loop() {
   }
 
   celebrationLoop();
-  
+
   //dump button presses
   buttonDoubleClicked();
   buttonLongPressed();
@@ -105,6 +105,7 @@ void flickerLoop() {
           //become scored
           gameState = FLICKER_SCORED;
           scoringTeam = getSignalTeam(neighborData);
+          signalTeam = scoringTeam;
 
           //kick off a celebration
           beginCelebration();
@@ -126,12 +127,14 @@ void flickerLoop() {
     FOREACH_FACE(f) {
       if (!isValueReceivedOnFaceExpired(f)) {
         byte neighborData = getLastValueReceivedOnFace(f);
-        if (getSignalTeam(neighborData) == (signalTeam % 3) + 1) {
+        if (getSignalTeam(neighborData) == signalTeam + 1) {
           signalTeam = getSignalTeam(neighborData);
+        } else if (signalTeam == 3 && getSignalTeam(neighborData) == 1) {
+          signalTeam = 1;
         }
       }
 
-      if (isAlone) {
+      if (isAlone()) {
         gameState = FLICKER_DISPLAY;
         signalTeam = 0;
       }
@@ -166,6 +169,7 @@ void flickerLoop() {
 }
 
 void beginCelebration() {
+  animTimer.set(0);
   celebrationState = CELEBRATE;
   animationInterval = ANIMATION_CELEBRATE_INTERVAL;
   celebrationTimer.set(CELEBRATE_TIME);
