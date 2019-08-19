@@ -17,6 +17,7 @@
 
 enum gameStates {FLICKER_UNSCORED, FLICKER_SCORED, FLICKER_DISPLAY, FLOPPER};
 byte gameState = FLICKER_UNSCORED;
+bool longPressCheck = false;
 
 #define TEAM_COUNT 3
 byte scoringTeam = 0;
@@ -46,6 +47,11 @@ void setup() {
 }
 
 void loop() {
+
+  if (hasWoken()) {
+    longPressCheck = false;
+  }
+
   // put your main code here, to run repeatedly:
   if (gameState == FLOPPER) {
     flopperLoop();
@@ -68,6 +74,13 @@ void loop() {
 
   celebrationLoop();
 
+  if(longPressCheck) {
+    if(isAlone()){
+      setColor(WHITE);
+      setColorOnFace(OFF, spinFace);
+    }
+  }
+
   //dump button presses
   buttonDoubleClicked();
   buttonLongPressed();
@@ -82,10 +95,20 @@ void flopperLoop() {
 
   //change to flicker?
   if (buttonLongPressed()) {
-    if (isAlone) {
-      scoringTeam = 0;
-      signalTeam = 0;
-      gameState = FLICKER_UNSCORED;
+    if (isAlone()) {
+      //set the transition boolean to true
+      longPressCheck = true;
+    }
+  }
+
+  if (buttonReleased()) {
+    if (longPressCheck) {
+      longPressCheck = false;//regardless of outcome, this needs to be false
+      if (isAlone()) {
+        scoringTeam = 0;
+        signalTeam = 0;
+        gameState = FLICKER_UNSCORED;
+      }
     }
   }
 
@@ -116,9 +139,19 @@ void flickerLoop() {
     //also, listen for long press to become flopper
     if (buttonLongPressed()) {
       if (isAlone()) {
-        gameState = FLOPPER;
-        signalTeam = 1;
-        scoringTeam = 0;
+        //set the transition boolean to true
+        longPressCheck = true;
+      }
+    }
+
+    if (buttonReleased()) {
+      if (longPressCheck) {
+        longPressCheck = false;//regardless of outcome, this needs to be false
+        if (isAlone()) {
+          gameState = FLOPPER;
+          signalTeam = 1;
+          scoringTeam = 0;
+        }
       }
     }
 
@@ -191,7 +224,7 @@ void celebrationLoop() {
     FOREACH_FACE(f) {
       if (!isValueReceivedOnFaceExpired(f)) {
         if (getCelebrationState(getLastValueReceivedOnFace(f)) == INERT) {
-          celebrationState = INERT;//revert the change from above
+          celebrationState = CELEBRATE;//revert the change from above
         }
       }
     }
