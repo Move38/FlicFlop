@@ -74,8 +74,8 @@ void loop() {
 
   celebrationLoop();
 
-  if(longPressCheck) {
-    if(isAlone()){
+  if (longPressCheck) {
+    if (isAlone()) {
       setColor(WHITE);
       setColorOnFace(OFF, spinFace);
     }
@@ -88,6 +88,29 @@ void loop() {
 
 void flopperLoop() {
 
+  //look for other floppers trying to move us along to the next color
+  bool shouldChange = false;
+  byte changeTo = signalTeam;
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) { //a neighbor!
+      byte neighborData = getLastValueReceivedOnFace(f);
+      if (getScoringTeam(neighborData) == 0) {//this could be a flopper
+        if (getSignalTeam(neighborData) == signalTeam + 1) {//this has an actual signal, so it's a flopper
+          shouldChange = true;
+          changeTo = getSignalTeam(neighborData);
+        } else if (signalTeam == 3 && getSignalTeam(neighborData) == 1) {
+          shouldChange = true;
+          changeTo = 1;
+        }
+      }
+    }
+  }
+
+  if (shouldChange) {
+    signalTeam = changeTo;
+    flopTimer.set(FLOP_INTERVAL);
+  }
+
   if (flopTimer.isExpired()) {
     signalTeam = (signalTeam % TEAM_COUNT) + 1;
     flopTimer.set(FLOP_INTERVAL);
@@ -98,6 +121,7 @@ void flopperLoop() {
     if (isAlone()) {
       //set the transition boolean to true
       longPressCheck = true;
+      beginCelebration();
     }
   }
 
@@ -141,6 +165,7 @@ void flickerLoop() {
       if (isAlone()) {
         //set the transition boolean to true
         longPressCheck = true;
+        beginCelebration();
       }
     }
 
@@ -262,6 +287,15 @@ void spinFaceAnimator() {
 void flopperDisplay() {
   setColor(makeColorHSB(teamHues[signalTeam], 255, 255));
   setColorOnFace(OFF, spinFace);
+  
+  FOREACH_FACE(f) {
+    if (!isValueReceivedOnFaceExpired(f)) { //a neighbor!
+      byte neighborData = getLastValueReceivedOnFace(f);
+      if (getScoringTeam(neighborData) == 0) { //it's another FLOPPER
+        setColorOnFace(makeColorHSB(teamHues[signalTeam], 255, 255), f);
+      }
+    }
+  }
 }
 
 void flickerDisplay() {
