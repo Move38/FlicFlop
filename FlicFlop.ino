@@ -89,18 +89,27 @@ void loop() {
 void flopperLoop() {
 
   //look for other floppers trying to move us along to the next color
+  bool hasFlopperNeighbor = false;
   bool shouldChange = false;
   byte changeTo = signalTeam;
+  byte lastFlopperFace = 0;
   FOREACH_FACE(f) {
     if (!isValueReceivedOnFaceExpired(f)) { //a neighbor!
       byte neighborData = getLastValueReceivedOnFace(f);
       if (getScoringTeam(neighborData) == 0) {//this could be a flopper
-        if (getSignalTeam(neighborData) == signalTeam + 1) {//this has an actual signal, so it's a flopper
-          shouldChange = true;
-          changeTo = getSignalTeam(neighborData);
-        } else if (signalTeam == 3 && getSignalTeam(neighborData) == 1) {
-          shouldChange = true;
-          changeTo = 1;
+        if (getSignalTeam(neighborData) != 0) {//it is a flopper
+          //set the last flopper face
+          lastFlopperFace = f;
+          hasFlopperNeighbor = true;
+
+          //check for signal change
+          if (getSignalTeam(neighborData) == signalTeam + 1) {//it wants me to move
+            shouldChange = true;
+            changeTo = getSignalTeam(neighborData);
+          } else if (signalTeam == 3 && getSignalTeam(neighborData) == 1) {//it wants me to move
+            shouldChange = true;
+            changeTo = 1;
+          }
         }
       }
     }
@@ -109,11 +118,18 @@ void flopperLoop() {
   if (shouldChange) {
     signalTeam = changeTo;
     flopTimer.set(FLOP_INTERVAL);
+    //change the spinface
+    //spinFace = lastFlopperFace;
+    //animTimer.set(0);
   }
 
   if (flopTimer.isExpired()) {
     signalTeam = (signalTeam % TEAM_COUNT) + 1;
     flopTimer.set(FLOP_INTERVAL);
+    //if (hasFlopperNeighbor) {
+    //spinFace = lastFlopperFace;
+    //animTimer.set(0);
+    //}
   }
 
   //change to flicker?
@@ -286,15 +302,20 @@ void spinFaceAnimator() {
 
 void flopperDisplay() {
   setColor(makeColorHSB(teamHues[signalTeam], 255, 255));
-  setColorOnFace(OFF, spinFace);
-  
+  bool multiFlopper = false;
+
   FOREACH_FACE(f) {
     if (!isValueReceivedOnFaceExpired(f)) { //a neighbor!
       byte neighborData = getLastValueReceivedOnFace(f);
       if (getScoringTeam(neighborData) == 0) { //it's another FLOPPER
-        setColorOnFace(makeColorHSB(teamHues[signalTeam], 255, 255), f);
+        setColorOnFace(OFF, f);
+        multiFlopper = true;
       }
     }
+  }
+
+  if (!multiFlopper) {
+    setColorOnFace(OFF, spinFace);
   }
 }
 
