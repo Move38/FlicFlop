@@ -308,7 +308,16 @@ void flopperDisplay() {
     if (!isValueReceivedOnFaceExpired(f)) { //a neighbor!
       byte neighborData = getLastValueReceivedOnFace(f);
       if (getScoringTeam(neighborData) == 0) { //it's another FLOPPER
-        setColorOnFace(OFF, f);
+        //am I celebrating?
+        if (animationInterval < ANIMATION_INTERVAL) { //I am celebrating
+          if (spinFace % 2 == 1) {
+            setColorOnFace(makeColorHSB(teamHues[signalTeam], 255, 255), f);
+          } else {
+            setColorOnFace(OFF, f);
+          }
+        } else {//not celebrating
+          setColorOnFace(OFF, f);
+        }
         multiFlopper = true;
       }
     }
